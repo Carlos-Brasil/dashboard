@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <title>Gestão Financeira Pessoal</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; background: #f3f5f7; }
+    .container { max-width: 500px; margin: 40px auto; background: #fff; border-radius: 10px; box-shadow: 0 4px 16px #0001; padding: 2rem; }
+    h2 { margin-top: 0; }
+    .tabs { display: flex; gap: 10px; margin-bottom: 2rem; }
+    .tab-btn { flex: 1; background: #eee; border: none; border-radius: 6px 6px 0 0; padding: 10px; cursor: pointer; font-weight: bold; }
+    .tab-btn.active { background: #2c3e50; color: #fff; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+    label { display: block; margin-top: 10px; }
+    input { width: 100%; padding: 8px; border-radius: 6px; border: 1px solid #bbb; margin-bottom: 10px; }
+    button { background: #2980b9; color: #fff; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-weight: bold; }
+    .saldo { font-size: 1.7rem; font-weight: bold; margin: 12px 0 24px; }
+    .verde { color: #27ae60; }
+    .vermelho { color: #e74c3c; }
+    .lista { margin: 0; padding: 0; list-style: none; }
+    .lista li { padding: 7px 0; border-bottom: 1px solid #eee; display: flex; align-items: center; justify-content: space-between; }
+    .delete-btn { background: #e74c3c; color: #fff; border: none; padding: 4px 12px; border-radius: 6px; cursor: pointer; font-size: 0.95em; margin-left: 10px; }
+    .delete-btn:hover { background: #c0392b; }
+    .logout { background: #e74c3c; margin-top: 10px; }
+    .center { text-align: center; }
+    @media (max-width: 540px) { .container { padding: 0.7rem; } }
+  </style>
+</head>
+<body>
+  <div class="container" id="login-container">
+    <h2 class="center">Login</h2>
+    <form id="login-form">
+      <label>Usuário</label>
+      <input type="text" id="login-user" required autocomplete="username">
+      <label>Senha</label>
+      <input type="password" id="login-pass" required autocomplete="current-password">
+      <button type="submit" style="width:100%;">Entrar</button>
+    </form>
+  </div>
+
+  <div class="container" id="main-app" style="display:none;">
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
+      <button class="tab-btn" data-tab="entradas">Entradas</button>
+      <button class="tab-btn" data-tab="saidas">Saídas</button>
+      <button class="logout" id="logout-btn">Sair</button>
+    </div>
+
+    <!-- Dashboard -->
+    <div class="tab-content active" id="dashboard">
+      <h2>Resumo Financeiro</h2>
+      <div>Saldo Total:</div>
+      <div id="saldo-total" class="saldo verde">R$ 0,00</div>
+      <canvas id="grafico"></canvas>
+    </div>
+    
+    <!-- Entradas -->
+    <div class="tab-content" id="entradas">
+      <h2>Adicionar Entrada</h2>
+      <form id="form-entrada">
+        <label>Valor (R$)</label>
+        <input type="number" min="0.01" step="0.01" required id="valor-entrada">
+        <label>Nome</label>
+        <input type="text" required id="nome-entrada">
+        <label>Categoria</label>
+        <input type="text" required id="cat-entrada" placeholder="Digite a categoria">
+        <button type="submit">Adicionar Entrada</button>
+      </form>
+      <h3>Histórico de Entradas</h3>
+      <ul id="lista-entradas" class="lista"></ul>
+    </div>
+    
+    <!-- Saídas -->
+    <div class="tab-content" id="saidas">
+      <h2>Adicionar Saída</h2>
+      <form id="form-saida">
+        <label>Valor (R$)</label>
+        <input type="number" min="0.01" step="0.01" required id="valor-saida">
+        <label>Nome</label>
+        <input type="text" required id="nome-saida">
+        <label>Categoria</label>
+        <input type="text" required id="cat-saida" placeholder="Digite a categoria">
+        <button type="submit">Adicionar Saída</button>
+      </form>
+      <h3>Histórico de Saídas</h3>
+      <ul id="lista-saidas" class="lista"></ul>
+    </div>
+  </div>
+
+  <script>
+    // Utilidades para persistência
+    function salvarDados() {
+      localStorage.setItem('entradas', JSON.stringify(entradas));
+      localStorage.setItem('saidas', JSON.stringify(saidas));
+    }
+    function carregarDados() {
+      try {
+        entradas = JSON.parse(localStorage.getItem('entradas')) || [];
+      } catch { entradas = []; }
+      try {
+        saidas = JSON.parse(localStorage.getItem('saidas')) || [];
+      } catch { saidas = []; }
+    }
+
+    // LOGIN
+    document.getElementById('login-form').onsubmit = function(e) {
+      e.preventDefault();
+      const u = document.getElementById('login-user').value;
+      const p = document.getElementById('login-pass').value;
+      if (u === 'jacqueline' && p === 'lessa') {
+        document.getElementById('login-container').style.display = 'none';
+        document.getElementById('main-app').style.display = 'block';
+        carregarDados();
+        atualizarDashboard();
+      } else {
+        alert('Usuário ou senha incorretos!');
+      }
+    };
+    document.getElementById('logout-btn').onclick = function() {
+      document.getElementById('main-app').style.display = 'none';
+      document.getElementById('login-container').style.display = 'block';
+      document.getElementById('login-form').reset();
+    };
+
+    // TABS
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.onclick = function() {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        this.classList.add('active');
+        document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+        document.getElementById(this.dataset.tab).classList.add('active');
+        if (this.dataset.tab === 'dashboard') atualizarDashboard();
+      }
+    });
+
+    // DADOS
+    let entradas = [], saidas = [];
+    carregarDados();
+
+    // ENTRADAS
+    document.getElementById('form-entrada').onsubmit = function(e) {
+      e.preventDefault();
+      const valor = parseFloat(document.getElementById('valor-entrada').value);
+      const nome = document.getElementById('nome-entrada').value;
+      const cat = document.getElementById('cat-entrada').value.trim();
+      entradas.push({valor, nome, cat});
+      salvarDados();
+      this.reset();
+      listarEntradas();
+      atualizarDashboard();
+    };
+
+    function removerEntrada(idx) {
+      // Entradas exibidas em ordem inversa
+      const realIdx = entradas.length - 1 - idx;
+      if (confirm("Deseja realmente excluir esta entrada?")) {
+        entradas.splice(realIdx, 1);
+        salvarDados();
+        listarEntradas();
+        atualizarDashboard();
+      }
+    }
+
+    function listarEntradas() {
+      let ul = document.getElementById('lista-entradas');
+      ul.innerHTML = '';
+      entradas.slice().reverse().forEach((ent, idx) => {
+        ul.innerHTML += `<li>
+          <span><b>${ent.nome}</b> - R$ ${ent.valor.toFixed(2)} [${ent.cat}]</span>
+          <button class="delete-btn" onclick="removerEntrada(${idx})">Excluir</button>
+        </li>`;
+      });
+    }
+
+    // SAIDAS
+    document.getElementById('form-saida').onsubmit = function(e) {
+      e.preventDefault();
+      const valor = parseFloat(document.getElementById('valor-saida').value);
+      const nome = document.getElementById('nome-saida').value;
+      const cat = document.getElementById('cat-saida').value.trim();
+      saidas.push({valor, nome, cat});
+      salvarDados();
+      this.reset();
+      listarSaidas();
+      atualizarDashboard();
+    };
+
+    function removerSaida(idx) {
+      // Saídas exibidas em ordem inversa
+      const realIdx = saidas.length - 1 - idx;
+      if (confirm("Deseja realmente excluir esta saída?")) {
+        saidas.splice(realIdx, 1);
+        salvarDados();
+        listarSaidas();
+        atualizarDashboard();
+      }
+    }
+
+    function listarSaidas() {
+      let ul = document.getElementById('lista-saidas');
+      ul.innerHTML = '';
+      saidas.slice().reverse().forEach((sai, idx) => {
+        ul.innerHTML += `<li>
+          <span><b>${sai.nome}</b> - R$ ${sai.valor.toFixed(2)} [${sai.cat}]</span>
+          <button class="delete-btn" onclick="removerSaida(${idx})">Excluir</button>
+        </li>`;
+      });
+    }
+
+    // DASHBOARD
+    let grafico = null;
+    function atualizarDashboard() {
+      // saldo
+      const somaEntradas = entradas.reduce((a,b) => a+b.valor, 0);
+      const somaSaidas = saidas.reduce((a,b) => a+b.valor, 0);
+      const saldo = somaEntradas - somaSaidas;
+      const saldoEl = document.getElementById('saldo-total');
+      saldoEl.textContent = 'R$ ' + saldo.toFixed(2);
+      saldoEl.className = 'saldo ' + (saldo >= 0 ? 'verde' : 'vermelho');
+      
+      // categorias
+      const catsEntradas = {};
+      entradas.forEach(e => catsEntradas[e.cat] = (catsEntradas[e.cat]||0)+e.valor);
+      const catsSaidas = {};
+      saidas.forEach(s => catsSaidas[s.cat] = (catsSaidas[s.cat]||0)+s.valor);
+
+      const labels = Array.from(new Set([...Object.keys(catsEntradas), ...Object.keys(catsSaidas)]));
+      const dadosEntradas = labels.map(l => catsEntradas[l] || 0);
+      const dadosSaidas = labels.map(l => catsSaidas[l] || 0);
+
+      // gráfico
+      if (grafico) grafico.destroy();
+      grafico = new Chart(document.getElementById('grafico'), {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [
+            { label: 'Entradas', data: dadosEntradas, backgroundColor: '#27ae60' },
+            { label: 'Saídas', data: dadosSaidas, backgroundColor: '#e74c3c' }
+          ]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { position: 'top' } },
+          scales: { y: { beginAtZero: true } }
+        }
+      });
+      listarEntradas();
+      listarSaidas();
+    }
+
+    // Permite chamar funções de exclusão no escopo global
+    window.removerEntrada = removerEntrada;
+    window.removerSaida = removerSaida;
+
+    // Sempre que abrir a página e já estiver logado, carregar dados e atualizar dashboard
+    window.onload = function() {
+      if(document.getElementById('main-app').style.display !== 'none'){
+        carregarDados();
+        atualizarDashboard();
+      }
+    }
+  </script>
+</body>
+</html>
