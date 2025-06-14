@@ -16,7 +16,7 @@
     .tab-content { display: none; }
     .tab-content.active { display: block; }
     label { display: block; margin-top: 10px; }
-    input, select { width: 100%; padding: 8px; border-radius: 6px; border: 1px solid #bbb; margin-bottom: 10px; }
+    input { width: 100%; padding: 8px; border-radius: 6px; border: 1px solid #bbb; margin-bottom: 10px; }
     button { background: #2980b9; color: #fff; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-weight: bold; }
     .saldo { font-size: 1.7rem; font-weight: bold; margin: 12px 0 24px; }
     .verde { color: #27ae60; }
@@ -32,9 +32,9 @@
     <h2 class="center">Login</h2>
     <form id="login-form">
       <label>Usuário</label>
-      <input type="text" id="login-user" required>
+      <input type="text" id="login-user" required autocomplete="username">
       <label>Senha</label>
-      <input type="password" id="login-pass" required>
+      <input type="password" id="login-pass" required autocomplete="current-password">
       <button type="submit" style="width:100%;">Entrar</button>
     </form>
   </div>
@@ -64,13 +64,7 @@
         <label>Nome</label>
         <input type="text" required id="nome-entrada">
         <label>Categoria</label>
-        <select required id="cat-entrada">
-          <option value="">Selecione</option>
-          <option>Salário</option>
-          <option>Presente</option>
-          <option>Venda</option>
-          <option>Outro</option>
-        </select>
+        <input type="text" required id="cat-entrada" placeholder="Digite a categoria">
         <button type="submit">Adicionar Entrada</button>
       </form>
       <h3>Histórico de Entradas</h3>
@@ -86,14 +80,7 @@
         <label>Nome</label>
         <input type="text" required id="nome-saida">
         <label>Categoria</label>
-        <select required id="cat-saida">
-          <option value="">Selecione</option>
-          <option>Alimentação</option>
-          <option>Transporte</option>
-          <option>Moradia</option>
-          <option>Lazer</option>
-          <option>Outro</option>
-        </select>
+        <input type="text" required id="cat-saida" placeholder="Digite a categoria">
         <button type="submit">Adicionar Saída</button>
       </form>
       <h3>Histórico de Saídas</h3>
@@ -102,6 +89,20 @@
   </div>
 
   <script>
+    // Utilidades para persistência
+    function salvarDados() {
+      localStorage.setItem('entradas', JSON.stringify(entradas));
+      localStorage.setItem('saidas', JSON.stringify(saidas));
+    }
+    function carregarDados() {
+      try {
+        entradas = JSON.parse(localStorage.getItem('entradas')) || [];
+      } catch { entradas = []; }
+      try {
+        saidas = JSON.parse(localStorage.getItem('saidas')) || [];
+      } catch { saidas = []; }
+    }
+
     // LOGIN
     document.getElementById('login-form').onsubmit = function(e) {
       e.preventDefault();
@@ -110,6 +111,7 @@
       if (u === 'jacqueline' && p === 'lessa') {
         document.getElementById('login-container').style.display = 'none';
         document.getElementById('main-app').style.display = 'block';
+        carregarDados();
         atualizarDashboard();
       } else {
         alert('Usuário ou senha incorretos!');
@@ -134,14 +136,16 @@
 
     // DADOS
     let entradas = [], saidas = [];
+    carregarDados();
 
     // ENTRADAS
     document.getElementById('form-entrada').onsubmit = function(e) {
       e.preventDefault();
       const valor = parseFloat(document.getElementById('valor-entrada').value);
       const nome = document.getElementById('nome-entrada').value;
-      const cat = document.getElementById('cat-entrada').value;
+      const cat = document.getElementById('cat-entrada').value.trim();
       entradas.push({valor, nome, cat});
+      salvarDados();
       this.reset();
       listarEntradas();
       atualizarDashboard();
@@ -160,8 +164,9 @@
       e.preventDefault();
       const valor = parseFloat(document.getElementById('valor-saida').value);
       const nome = document.getElementById('nome-saida').value;
-      const cat = document.getElementById('cat-saida').value;
+      const cat = document.getElementById('cat-saida').value.trim();
       saidas.push({valor, nome, cat});
+      salvarDados();
       this.reset();
       listarSaidas();
       atualizarDashboard();
@@ -215,6 +220,14 @@
       });
       listarEntradas();
       listarSaidas();
+    }
+
+    // Sempre que abrir a página e já estiver logado, carregar dados e atualizar dashboard
+    window.onload = function() {
+      if(document.getElementById('main-app').style.display !== 'none'){
+        carregarDados();
+        atualizarDashboard();
+      }
     }
   </script>
 </body>
